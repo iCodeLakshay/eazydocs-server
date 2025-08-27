@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import users from './routes/user.route.js'
 import auth from './routes/auth.route.js';
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 const app = express();
@@ -17,7 +18,7 @@ const CORS_OPTIONS = {
 // Apply middleware first
 app.use(cors(CORS_OPTIONS));
 app.use(express.json());
-
+app.use(cookieParser());
 // Health/welcome route
 app.get('/', (req, res) => {
   res.send('Welcome to the Eazydocs API');
