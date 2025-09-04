@@ -45,7 +45,7 @@ export const getAllUsers = async (req, res) => {
 
 export const getUserById = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('users').select('*').eq('id', req.params.id).single();
+        const { data, error } = await supabase.from('users').select('id,name,email,username,profile_picture,tagline,graphy').eq('id', req.params.id).single();
         if (error) res.status(400).json({ error: error.message });
         res.status(200).json(data);
     } catch (error) {
