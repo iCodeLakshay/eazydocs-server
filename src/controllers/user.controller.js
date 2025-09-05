@@ -45,7 +45,7 @@ export const getAllUsers = async (req, res) => {
 
 export const getUserById = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('users').select('id,name,email,username,profile_picture,tagline,graphy').eq('id', req.params.id).single();
+        const { data, error } = await supabase.from('users').select('id,name,email,username,profile_picture,tagline,biography,topics,social_links,blogs,role,phone_number').eq('id', req.params.id).single();
         if (error) res.status(400).json({ error: error.message });
         res.status(200).json(data);
     } catch (error) {
@@ -55,20 +55,21 @@ export const getUserById = async (req, res) => {
 export const updateUser = async (req, res) => {
     try {
         const { data, error } = await supabase.from('users').update(req.body).eq('id', req.params.id);
-        if (error) res.status(400).json({ error: error.message });
-        res.status(200).json(data);
+        if (error) return res.status(400).json({ error: error.message });
+        console.log("Data from backend", data);
+        return res.status(200).json(data);
     } catch (error) {
-        res.status(500).json({ error: 'Error in updating user' });
+        return res.status(500).json({ error: 'Error in updating user' });
     }
 }
 
 export const deleteUser = async (req, res) => {
     try {
         const { data, error } = await supabase.from('users').delete().eq('id', req.params.id);
-        if (error) res.status(400).json({ error: error.message });
-        res.status(200).json(data);
+        if (error) return res.status(400).json({ error: error.message });        
+        return res.status(200).json(data);
     } catch (error) {
-        res.status(500).json({ error: 'Error in deleting user' });
+        return res.status(500).json({ error: 'Error in deleting user' });
     }
 }
 

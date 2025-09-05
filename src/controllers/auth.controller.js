@@ -88,7 +88,7 @@ export const getLoggedInUser = async (req, res) => {
     // Fetch full profile using email from req.user
     const { data: profile, error } = await supabase
       .from("users")
-      .select("id,name,email,username,profile_picture,tagline,biography,social_links,blogs,role,phone_number")
+      .select("id,name,email,username,profile_picture,tagline,biography,social_links,blogs,role,phone_number,topics")
       .eq("email", req.user.email)
       .single();
 
