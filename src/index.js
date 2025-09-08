@@ -4,6 +4,7 @@ import cors from 'cors';
 import users from './routes/user.route.js'
 import auth from './routes/auth.route.js';
 import cookieParser from "cookie-parser";
+import blogs from './routes/blogs.route.js';
 
 dotenv.config();
 const app = express();
@@ -19,14 +20,16 @@ const CORS_OPTIONS = {
 app.use(cors(CORS_OPTIONS));
 app.use(express.json());
 app.use(cookieParser());
-// Health/welcome route
-app.get('/', (req, res) => {
-  res.send('Welcome to the Eazydocs API');
-});
 
 // API routes
 app.use('/api/user', users);
 app.use('/api/auth', auth);
+app.use('/api/blogs', blogs);
+
+// Health/welcome route
+app.get('/', (req, res) => {
+  res.send('Welcome to the Eazydocs API');
+});
 
 app.listen(process.env.PORT || 5000, () => {
   console.log(`Server is running on port ${process.env.PORT || 5000}`);
