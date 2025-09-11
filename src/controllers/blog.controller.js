@@ -49,7 +49,8 @@ export const getBlogsByAuthorId = async (req, res) => {
         const { data, error } = await supabase
           .from('blogs')
           .select()
-          .eq('author', authorId);
+          .eq('author', authorId)
+          .order('created_at', { ascending: false });
 
         if (error) {
             return res.status(400).json({ error: error.message });
