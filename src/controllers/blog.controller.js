@@ -44,13 +44,18 @@ export const createBlog = async (req, res) => {
 
 export const getBlogsByAuthorId = async (req, res) => {
     try {
-        const authorId = req.params.authorId; // get authorId from route params
-        // For supabase-js v2
+        const authorId = req.params.authorId;
         const { data, error } = await supabase
-          .from('blogs')
-          .select()
-          .eq('author', authorId)
-          .order('created_at', { ascending: false });
+            .from('blogs')
+            .select(`
+                *,
+                users (
+                    name,
+                    profile_picture
+                )
+            `)
+            .eq('author', authorId)
+            .order('created_at', { ascending: false });
 
         if (error) {
             return res.status(400).json({ error: error.message });
