@@ -25,92 +25,81 @@ async function uploadBannerImage(blogId, file) {
     return publicData.publicUrl;
 }
 
+// Small helpers
+const parseTags = (tags) => {
+    if (!tags) return [];
+    try {
+        if (Array.isArray(tags)) return tags;
+        return JSON.parse(tags);
+    } catch {
+        return [];
+    }
+};
+
+const toBool = (v) => v === true || v === 'true' || v === 1 || v === '1';
+
 export const createBlog = async (req, res) => {
     try {
-        // Parse tags if it's a string
-        let parsedTags = [];
-        if (req.body.tags) {
-            try {
-                parsedTags = typeof req.body.tags === 'string' ? JSON.parse(req.body.tags) : req.body.tags;
-            } catch (error) {
-                return res.status(400).json({ error: 'Invalid tags format' });
-            }
+        const { title, subtitle, content, author, tags, isPublished } = req.body;
+
+        if (!title || !subtitle || !content || !author) {
+            return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // Parse isPublished boolean
-        const isPublished = req.body.isPublished === 'true' || req.body.isPublished === true;
-
-        // Prepare blog data
-        const blogData = {
-            title: req.body.title,
-            subtitle: req.body.subtitle,
-            content: req.body.content,
-            author: req.body.author,
-            tags: parsedTags,
-            slug: generateSlug(req.body.title, req.body.author, 10),
-            isPublished: isPublished,
-            approved: true, // Default to false, admin will approve
+        const blogPayload = {
+            title,
+            subtitle,
+            content,
+            author,
+            banner_image: null,
+            tags: parseTags(tags),
+            slug: generateSlug(title, author, 10),
+            isPublished: toBool(isPublished),
+            approved: true, // default approved for now
             created_at: new Date().toISOString(),
         };
 
-        // Insert the blog first to get the blog ID
+        // 1) Create blog to get id
         const { data: createdBlog, error: blogError } = await supabase
             .from('blogs')
-            .insert(blogData)
+            .insert(blogPayload)
             .select()
             .single();
-        
         if (blogError) return res.status(400).json({ error: blogError.message });
 
-        // Upload banner image if provided
-        let bannerImageUrl = null;
-        if (req.file) {
-            try {
-                bannerImageUrl = await uploadBannerImage(createdBlog.id, req.file);
-                
-                // Update the blog with banner image URL
-                const { data: updatedBlog, error: updateError } = await supabase
-                    .from('blogs')
-                    .update({ banner_image: bannerImageUrl })
-                    .eq('id', createdBlog.id)
-                    .select()
-                    .single();
+        // 2) In parallel: upload banner (if any) and fetch user's blogs
+        const [bannerImageUrl, userResult] = await Promise.all([
+            req.file ? uploadBannerImage(createdBlog.id, req.file) : Promise.resolve(null),
+            supabase.from('users').select('blogs').eq('id', author).single(),
+        ]);
 
-                if (updateError) return res.status(400).json({ error: updateError.message });
-                createdBlog.banner_image = bannerImageUrl;
-            } catch (uploadError) {
-                console.error('Banner image upload failed:', uploadError);
-                return res.status(400).json({ error: 'Failed to upload banner image' });
-            }
+        if (userResult.error) return res.status(400).json({ error: userResult.error.message });
+
+        // 3) Update blog with banner url (no select round-trip) and update user's blogs
+        const updatedBlogs = userResult.data?.blogs ? [...userResult.data.blogs, createdBlog.id] : [createdBlog.id];
+
+        const updates = [];
+        if (bannerImageUrl) {
+            createdBlog.banner_image = bannerImageUrl; // reflect in response
+            updates.push(
+                supabase.from('blogs').update({ banner_image: bannerImageUrl }).eq('id', createdBlog.id)
+            );
         }
+        updates.push(
+            supabase.from('users').update({ blogs: updatedBlogs }).eq('id', author)
+        );
 
-        // Update the user's blogs array to include the new blog ID
-        const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('blogs')
-            .eq('id', req.body.author)
-            .single();
+        const results = await Promise.all(updates);
+        const failing = results.find(r => r?.error);
+        if (failing?.error) return res.status(400).json({ error: failing.error.message });
 
-        if (userError) return res.status(400).json({ error: userError.message });
-
-        // Add the new blog ID to the existing blogs array
-        const updatedBlogs = userData.blogs ? [...userData.blogs, createdBlog.id] : [createdBlog.id];
-
-        // Update the user's blogs array
-        const { error: updateError } = await supabase
-            .from('users')
-            .update({ blogs: updatedBlogs })
-            .eq('id', req.body.author);
-
-        if (updateError) return res.status(400).json({ error: updateError.message });
-
-        res.status(201).json({
+        return res.status(201).json({
             message: 'Blog created successfully',
             blog: createdBlog,
-            userBlogs: updatedBlogs
+            userBlogs: updatedBlogs,
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: error.message });
     }
 }
 
