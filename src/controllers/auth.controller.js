@@ -24,7 +24,7 @@ export const login = async (req, res) => {
       email,
       password,
     });
-    if (error) throw error;
+    if (error) throw error.message;
 
     // correct user reference: data.user contains the supabase user
     const supUser = data.user;

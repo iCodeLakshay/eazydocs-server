@@ -153,3 +153,33 @@ export const uploadImage = async (req, res) => {
   }
 };
 
+
+export const checkUsernameAvailability = async (req, res) => {
+  const { username } = req.params;
+  console.log("Checking availability for username:", username);
+  
+  if (username === undefined) {
+    return res.status(400).json({ error: "Username is required" });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id")
+      .eq("username", username)
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      return res.status(500).json({ error: "Database error" }); // PGRST116: No rows found, which means username is available
+    }
+
+    if (data) {
+      return res.json({ available: false });
+    } else {
+      return res.json({ available: true });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: "Server error" });
+  }
+};
