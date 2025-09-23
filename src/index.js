@@ -1,11 +1,11 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
-import users from './routes/user.route.js'
-import auth from './routes/auth.route.js';
+import users_routes from './routes/user.route.js'
+import auth_routes from './routes/auth.route.js';
 import cookieParser from "cookie-parser";
-import blogs from './routes/blogs.route.js';
-
+import blogs_routes from './routes/blogs.route.js';
+import otp_routes from './routes/otp.route.js'
 dotenv.config();
 const app = express();
 
@@ -22,10 +22,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 // API routes
-app.use('/api/user', users);
-app.use('/api/auth', auth);
-app.use('/api/blogs', blogs);
-
+app.use('/api/user', users_routes);
+app.use('/api/auth', auth_routes);
+app.use('/api/blogs', blogs_routes);
+app.use('/api/otp', otp_routes);
 // Health/welcome route
 app.get('/', (req, res) => {
   res.send('Welcome to the Eazydocs API');
