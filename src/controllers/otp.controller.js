@@ -1,5 +1,5 @@
 import redis from "../utils/redisClient.js";
-import supabase from "../utils/supabaseClient.js";
+import {supabase} from "../utils/supabaseClient.js";
 import { transporter } from "../utils/nodemailerClient.js";
 
 function generateOTP() {
@@ -9,6 +9,15 @@ function generateOTP() {
 export const sendOTP = async (req, res) => {
     try {
         const { email } = req.body;
+        const { data: user, error: fetchError } = await supabase
+            .from("users")
+            .select("id")
+            .eq("email", email)
+            .single();
+
+        if (fetchError || !user) {
+            return res.status(404).json({ success: false, message: "Email not found" });
+        }
         const otp = generateOTP();
 
         await redis.setex(`otp:${email}`, 600, otp);

@@ -1,5 +1,5 @@
 import generateSlug from "../utils/generateSlug.js";
-import supabase from "../utils/supabaseClient.js";
+import {supabase} from "../utils/supabaseClient.js";
 
 // Helper function for banner image upload
 async function uploadBannerImage(blogId, file) {

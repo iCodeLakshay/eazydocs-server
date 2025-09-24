@@ -1,4 +1,4 @@
-import supabase from "../utils/supabaseClient.js";
+import {supabase, supabaseAdmin} from "../utils/supabaseClient.js";
 import bcrypt from "bcryptjs";
 import { uploadProfilePicture } from "../utils/uploadImage.js";
 
@@ -100,10 +100,47 @@ export const updateUser = async (req, res) => {
 
 export const deleteUser = async (req, res) => {
     try {
-        const { data, error } = await supabase.from('users').delete().eq('id', req.params.id);
-        if (error) return res.status(400).json({ error: error.message });        
-        return res.status(200).json(data);
+        const userId = req.params.id;
+        
+        // First get the user to find their auth_id
+        const { data: user, error: fetchError } = await supabase
+            .from('users')
+            .select('auth_id')
+            .eq('id', userId)
+            .single();
+            
+        if (fetchError || !user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Delete from custom users table first
+        const { error: dbError } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', userId);
+
+        if (dbError) {
+            return res.status(400).json({ error: dbError.message });
+        }
+
+        // Delete from Supabase Auth if auth_id exists
+        if (user.auth_id) {
+            const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(
+                user.auth_id
+            );
+            
+            if (authError) {
+                console.error("Auth user deletion error:", authError);
+                // Log error but don't fail the request since custom table deletion succeeded
+            }
+        }
+        
+        return res.status(200).json({ 
+            success: true, 
+            message: 'User deleted successfully' 
+        });
     } catch (error) {
+        console.error("Delete user error:", error);
         return res.status(500).json({ error: 'Error in deleting user' });
     }
 }
@@ -153,10 +190,8 @@ export const uploadImage = async (req, res) => {
   }
 };
 
-
 export const checkUsernameAvailability = async (req, res) => {
   const { username } = req.params;
-  console.log("Checking availability for username:", username);
   
   if (username === undefined) {
     return res.status(400).json({ error: "Username is required" });
@@ -183,3 +218,70 @@ export const checkUsernameAvailability = async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 };
+
+export const resetPassword = async (req, res) => {
+  const { email, newPassword } = req.body;
+  
+  try {
+    // Fetch the user and their auth_id (UUID)
+    const { data: existingUser, error: fetchError } = await supabase
+      .from("users")
+      .select("auth_id, email")
+      .eq("email", email)
+      .single();
+
+
+    if (fetchError || !existingUser || !existingUser.auth_id) {
+      return res.status(404).json({ 
+        success: false, 
+        error: "Email not found or auth_id missing" 
+      });
+    }
+
+    // First, let's verify the user exists in auth.users
+    const { data: authUser, error: authFetchError } = await supabaseAdmin.auth.admin.getUserById(existingUser.auth_id);
+
+    if (authFetchError || !authUser) {
+      return res.status(500).json({ 
+        success: false, 
+        error: "User not found in authentication system" 
+      });
+    }
+    // Use auth_id (UUID) for Supabase Auth admin API
+    const { data: updateResult, error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+      existingUser.auth_id,
+      { password: newPassword }
+    );
+
+    if (authError) {
+      return res.status(500).json({ 
+        success: false, 
+        error: "Failed to update authentication password: " + authError.message 
+      });
+    }
+
+    // Hash and update password in your custom users table
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const { error: dbError } = await supabase
+      .from("users")
+      .update({ password: hashedPassword })
+      .eq("email", email);
+
+    if (dbError) {
+      return res.status(500).json({ 
+        success: false, 
+        error: "Failed to update password in database: " + dbError.message 
+      });
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: "Password reset successfully" 
+    });
+  } catch (error) {
+    return res.status(500).json({ 
+      success: false, 
+      error: "Error in resetting password" 
+    });
+  }
+}

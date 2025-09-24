@@ -1,5 +1,4 @@
 import jwt from "jsonwebtoken";
-import supabase from "../utils/supabaseClient.js";
 
 export const verifyUser = async (req, res, next) => {
   try {
