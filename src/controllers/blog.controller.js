@@ -182,3 +182,96 @@ export const deleteBlog = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 }
+
+export const getAllBlogs = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('blogs')
+            .select(`
+                *,
+                users (
+                    name,
+                    profile_picture
+                )
+            `)
+            .order('created_at', { ascending: false });
+
+            if(error)
+                return res.status(400).json({ error: error.message });
+            console.log("All Blogs data:", data);
+            res.status(200).json({ blogs: data });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}
+
+export const searchBlog = async (req, res) => {
+  try {
+    const raw = req.params.keyword ?? '';
+    const keyword = String(raw).trim();
+    if (!keyword) {
+      // Return latest blogs when no keyword provided
+      const { data, error } = await supabase
+        .from('blogs')
+        .select(`
+          *,
+          users (
+            name,
+            profile_picture
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) return res.status(400).json({ error: error.message });
+      return res.status(200).json({ blogs: data });
+    }
+
+    // Escape characters that break the OR string (basic)
+    const safe = keyword.replace(/[(),]/g, ' ').trim();
+
+    // Build base query
+    let query = supabase
+      .from('blogs')
+      .select(
+        `
+        *,
+        users (
+          name,
+          profile_picture
+        )
+      `
+      )
+      .order('created_at', { ascending: false });
+
+    // OR across blog columns
+    // - Use * for PostgREST wildcards
+    // - tags.cs.{value} only matches exact tag element
+    const orClauses = [
+      `title.ilike.*${safe}*`,
+      `subtitle.ilike.*${safe}*`,
+      `content.ilike.*${safe}*`,
+      // Exact tag match (works if tags is text[])
+      `tags.cs.{${safe}}`,
+    ].join(',');
+
+    query = query.or(orClauses);
+
+    // Add foreign-table OR on users (author name)
+    // You can include username also if it exists: `name.ilike.*...*,username.ilike.*...*`
+    query = query.or(`name.ilike.*${safe}*`, { foreignTable: 'users' });
+
+    // Optional: if the keyword looks like an ID, also match by author id
+    const isUUID = /^[0-9a-fA-F-]{36}$/.test(safe);
+    const isInt = /^\d+$/.test(safe);
+    if (isUUID || isInt) {
+      query = query.or(`author.eq.${safe}`);
+    }
+
+    const { data, error } = await query;
+    if (error) return res.status(400).json({ error: error.message });
+
+    return res.status(200).json({ blogs: data });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};

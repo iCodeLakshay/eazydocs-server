@@ -1,4 +1,4 @@
-import { createBlog, deleteBlog, getBlogsByAuthorId } from "../controllers/blog.controller.js";
+import { createBlog, deleteBlog, getAllBlogs, getBlogsByAuthorId, searchBlog } from "../controllers/blog.controller.js";
 import express from "express";
 import multer from "multer";
 
@@ -22,7 +22,9 @@ const upload = multer({
 });
 
 router.post("/", upload.single('banner_image'), createBlog);
+router.get("/all", getAllBlogs);
 router.get("/:authorId", getBlogsByAuthorId);
-router.delete("/:blogId", deleteBlog)
+router.get("/:keyword", searchBlog);
+router.delete("/:blogId", deleteBlog);
 
 export default router;
