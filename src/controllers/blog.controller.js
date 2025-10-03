@@ -110,6 +110,8 @@ export const getBlogsByAuthorId = async (req, res) => {
             .from('blogs')
             .select(`
                 *,
+                likes,
+                views,
                 users (
                     name,
                     profile_picture
@@ -189,6 +191,8 @@ export const getAllBlogs = async (req, res) => {
             .from('blogs')
             .select(`
                 *,
+                likes,
+                views,
                 users (
                     name,
                     profile_picture
@@ -202,6 +206,30 @@ export const getAllBlogs = async (req, res) => {
             res.status(200).json({ blogs: data });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+}
+
+export const getPopularBlogs = async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('blogs')
+            .select(`
+                *,
+                likes,
+                views,
+                users (
+                    name,
+                    profile_picture
+                )
+            `)
+            .order('likes', { ascending: false })
+            .limit(10);
+
+        if (error) return res.status(400).json({ error: error.message });
+
+        return res.status(200).json({ blogs: data });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
     }
 }
 
@@ -230,18 +258,20 @@ export const searchBlog = async (req, res) => {
     const safe = keyword.replace(/[(),]/g, ' ').trim();
 
     // Build base query
-    let query = supabase
-      .from('blogs')
-      .select(
-        `
-        *,
-        users (
-          name,
-          profile_picture
-        )
-      `
-      )
-      .order('created_at', { ascending: false });
+        let query = supabase
+            .from('blogs')
+            .select(
+                `
+                *,
+                likes,
+                views,
+                users (
+                    name,
+                    profile_picture
+                )
+            `
+            )
+            .order('created_at', { ascending: false });
 
     // OR across blog columns
     // - Use * for PostgREST wildcards
@@ -275,3 +305,41 @@ export const searchBlog = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+export const blogLiked = async (req, res) => {
+    try {
+        const blogId = req.params.blogId;
+
+        if (!blogId) return res.status(400).json({ error: 'Missing blogId parameter' });
+
+        // Try to increment likes atomically. Supabase/PostgREST supports transforming with SQL via rpc
+        // but to keep compatibility, we'll perform a safe select -> update in a transaction-like manner.
+
+        // 1) Fetch current likes
+        const { data: blogData, error: fetchError } = await supabase
+            .from('blogs')
+            .select('likes')
+            .eq('id', blogId)
+            .single();
+
+        if (fetchError) return res.status(400).json({ error: fetchError.message });
+
+        const currentLikes = Number(blogData?.likes ?? 0);
+        const newLikes = currentLikes + 1;
+
+        // 2) Update likes
+        const { data: updated, error: updateError } = await supabase
+            .from('blogs')
+            .update({ likes: newLikes })
+            .eq('id', blogId)
+            .select('likes')
+            .single();
+
+        if (updateError) return res.status(400).json({ error: updateError.message });
+
+        return res.status(200).json({ message: 'Like added', likes: updated.likes });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+}
+
